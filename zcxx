@@ -1,0 +1,295 @@
+getgenv().Config = {
+    Invite = "karved.trident",
+    Version = "1.0",
+}
+
+getgenv().luaguardvars = {
+    DiscordName = "rvd1",
+}
+
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Hl3n/karvxhub/refs/heads/main/ui"))()
+
+library:init()
+
+local Window = library.NewWindow({
+    title = "karved.trident",
+    size = UDim2.new(0, 525, 0, 650)
+})
+
+local tabs = {
+    Tab1 = Window:AddTab("Tab1"),
+    Settings = library:CreateSettingsTab(Window),
+}
+
+local sections = {
+    Section1 = tabs.Tab1:AddSection("Combat", 1),
+    Section2 = tabs.Tab1:AddSection("Settings", 2),
+}
+
+_G.Flags = {
+    ESP = {
+        NotVisibleColor = Color3.fromRGB(255, 0, 0),
+        VisibleColor = Color3.fromRGB(0, 255, 0),
+        DistanceLimit = 1500,
+        Box = true,
+        Name = true,
+        Weapon = true,
+        Distance = true,
+        VisibleCheck = true,
+        Sleepers = false,
+    },
+    HitboxExpander = {
+        Size = 7,
+        Enabled = true,
+        Transparency = 0, -- Set to 0 for visibility
+        Part = "Head", -- {"Torso","Head","rest of the body parts"}
+    },
+}
+
+-- UI Elements for ESP
+sections.Section1:AddToggle({
+    enabled = true,
+    text = "Enable ESP",
+    flag = "ESP_Enabled",
+    tooltip = "Toggle ESP on or off",
+    callback = function(value)
+        _G.Flags.ESP.Enabled = value
+    end
+})
+
+sections.Section1:AddToggle({
+    enabled = true,
+    text = "Show Name",
+    flag = "ESP_Name",
+    tooltip = "Show player name in ESP",
+    callback = function(value)
+        _G.Flags.ESP.Name = value
+    end
+})
+
+sections.Section1:AddToggle({
+    enabled = true,
+    text = "Show Weapon",
+    flag = "ESP_Weapon",
+    tooltip = "Show player's weapon in ESP",
+    callback = function(value)
+        _G.Flags.ESP.Weapon = value
+    end
+})
+
+sections.Section1:AddToggle({
+    enabled = true,
+    text = "Show Distance",
+    flag = "ESP_Distance",
+    tooltip = "Show distance to player in ESP",
+    callback = function(value)
+        _G.Flags.ESP.Distance = value
+    end
+})
+
+-- UI Elements for Hitbox Expander
+sections.Section1:AddToggle({
+    enabled = true,
+    text = "Enable Hitbox Expander",
+    flag = "HitboxExpander_Enabled",
+    tooltip = "Toggle Hitbox Expander on or off",
+    callback = function(value)
+        _G.Flags.HitboxExpander.Enabled = value
+    end
+})
+
+sections.Section1:AddSlider({
+    text = "Hitbox Size",
+    flag = "HitboxSize",
+    value = _G.Flags.HitboxExpander.Size,
+    min = 1,
+    max = 20,
+    increment = 1,
+    tooltip = "Adjust the hitbox size",
+    callback = function(value)
+        _G.Flags.HitboxExpander.Size = value
+    end
+})
+
+sections.Section1:AddSlider({
+    text = "Hitbox Transparency",
+    flag = "HitboxTransparency",
+    value = _G.Flags.HitboxExpander.Transparency,
+    min = 0,
+    max = 1,
+    increment = 0.1,
+    tooltip = "Adjust the hitbox transparency",
+    callback = function(value)
+        _G.Flags.HitboxExpander.Transparency = value
+    end
+})
+
+-- ESP and Hitbox Expander Logic
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local CurrentCamera = workspace.CurrentCamera
+local OriginalSizes = {}
+
+function IsPlayer(Model)
+    return Model.ClassName == "Model" and Model:FindFirstChild("Head") and Model.PrimaryPart ~= nil
+end
+
+function HitboxExpander(Model, Hitbox)
+    if Hitbox.Enabled then
+        local Part = Model:FindFirstChild(Hitbox.Part)
+        if Part then
+            Part.Size = Vector3.new(Hitbox.Size, Hitbox.Size, Hitbox.Size)
+            Part.Transparency = Hitbox.Transparency
+            Part.CanCollide = false
+        end
+    else
+        local Part = Model:FindFirstChild(Hitbox.Part)
+        if Part then
+            Part.Size = OriginalSizes[Hitbox.Part]
+            Part.Transparency = 0
+            Part.CanCollide = true
+        end
+    end
+end
+
+function CreateESP(Model)
+    local BillboardGui = Instance.new("BillboardGui")
+    BillboardGui.Parent = Model.PrimaryPart
+    BillboardGui.Size = UDim2.new(0, 100, 0, 100)
+    BillboardGui.StudsOffset = Vector3.new(0, 2, 0)
+    local TextLabel = Instance.new("TextLabel")
+    TextLabel.Parent = BillboardGui
+    TextLabel.Text = Model.Name
+    TextLabel.Font = Enum.Font.SourceSans
+    TextLabel.FontSize = Enum.FontSize.Size24
+    TextLabel.TextColor3 = Color3.new(255, 255, 255)
+    TextLabel.BackgroundTransparency = 1
+    return BillboardGui
+end
+
+local HasESP = {}
+RunService.Heartbeat:Connect(function()
+    if not _G.Flags.ESP.Enabled then return end
+    local ESP = _G.Flags.ESP
+    local Hitbox = _G.Flags.HitboxExpander
+    for i, v in pairs(workspace:GetChildren()) do
+        if IsPlayer(v) then
+            if HasESP[v] == nil then
+                local Billboard = CreateESP(v)
+                HasESP[v] = Billboard
+            elseif HasESP[v] ~= nil then
+                local Billboard = HasESP[v]
+                local PrimaryPosition = v.PrimaryPart.Position
+                local Origin = CurrentCamera.CFrame.Position
+                local Distance = (Origin - PrimaryPosition).Magnitude
+                HitboxExpander(v, Hitbox)
+                if (Distance > ESP.DistanceLimit) then
+                    Billboard.Enabled = false
+                    continue
+                end
+                Billboard.Enabled = true
+                Billboard.Parent = v.PrimaryPart
+                local TextLabel = Billboard:FindFirstChild("TextLabel")
+                if ESP.Name then
+                    TextLabel.Text = v.Name
+                end
+                if ESP.Weapon then
+                    local Character = v.Parent
+                    local Weapon = Character:FindFirstChild("Backpack"):FindFirstChild("Weapon")
+                    if Weapon then
+                        TextLabel.Text = TextLabel.Text .. "\n" .. Weapon.Name
+                    end
+                end
+                if ESP.Distance then
+                    TextLabel.Text = TextLabel.Text .. "\n" .. math.floor(Distance) .. " studs"
+                end
+            end
+        end
+    end
+end)
+sections.Section1:AddList({
+	enabled = true,
+	text = "Hit Point",
+	flag = "Hitpont",
+	multi = false,
+	tooltip = "Adjust the Hitbpoint of the hitboxes",
+    risky = false,
+    dragging = false,
+    focused = false,
+	value = "Head",
+	values = {
+		"Head",
+		"Torso",
+	},
+	callback = function(v)
+        _G.Flags.ESP.HitboxExpander.Part = value
+	    print("List Value Is Now : "..v)
+	end
+})
+local FOVMin = 70
+local FOVMax = 120
+local FOVStep = 5
+local currentFOV = CurrentCamera.FieldOfView
+local desiredFOV = CurrentCamera.FieldOfView
+local function updateFOV()
+    local delta = (desiredFOV - currentFOV)
+    if math.abs(delta) < 0.1 then
+        currentFOV = desiredFOV
+    else
+        currentFOV = currentFOV + math.clamp(delta, -0.5, 0.5)
+    end
+    CurrentCamera.FieldOfView = currentFOV
+end
+sections.Section2:AddSlider({
+    text = "FOV Changer",
+    flag = "FOVslide",
+    value = currentFOV,
+    min = 70,
+    max = 120,
+    increment = 5,
+    tooltip = "Adjust your FOV",
+    callback = function(value)
+        desiredFOV = value
+    end
+})
+local Light = game:GetService("Lighting")
+local OrigAmb = Light.Ambient
+local OrigColor = Light.ColorShift_Bottom
+local OrigTop = Light.ColorShift_Top
+
+local isFullbright = false -- Variable to track the fullbright state
+
+-- Function to apply fullbright effect
+local function dofullbright()
+    if isFullbright then
+        Light.Ambient = Color3.new(1, 1, 1)
+        Light.ColorShift_Bottom = Color3.new(1, 1, 1)
+        Light.ColorShift_Top = Color3.new(1, 1, 1)
+    else
+        -- Restore original lighting settings
+        Light.Ambient = OrigAmb
+        Light.ColorShift_Bottom = OrigColor
+        Light.ColorShift_Top = OrigTop
+    end
+end
+
+sections.Section2:AddToggle({
+    enabled = true,
+    text = "Toggle Fullbright",
+    flag = "FullbrightToggle",
+    tooltip = "Toggle fullbright lighting effect",
+    risky = false,
+    callback = function(value)
+        isFullbright = value 
+        dofullbright()
+        print("Fullbright is now set to: " .. tostring(value))
+    end
+})
+dofullbright()
+Light.LightingChanged:Connect(dofullbright)
+RunService.RenderStepped:Connect(function()
+    updateFOV()
+end)
+
+
+library:SendNotification("Notification", 5, Color3.new(255, 0, 0))
